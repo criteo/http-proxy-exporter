@@ -5,6 +5,8 @@ branches:
   only:
     - master
 script:
+  - make deps
+  - make test
   - make build
 sudo: false
 deploy:
