@@ -18,7 +18,7 @@ LDFLAGS=-ldflags '-s -w -X "main.appName=$(APPNAME)" -X "main.buildVersion=$(VER
 
 all: deps test install
 deps:
-	$(GOGET)
+	$(GOGET) -t
 build:
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) -v
 test:
