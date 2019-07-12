@@ -12,5 +12,8 @@ deploy:
   api_key:
     secure: H90Z2d0gdvBeHE5syoYPRvCeHkeLHV9Qq0iQW4yc1WLhl0rEw7t7TQz+yNLPP8ACAsjPJ4oyiPpZYjKP4XyCcv6r8v8RtSqQC0fvyPPXqrkNgsyQ0i+CB4WY9LDK1d32ICZQOO//tohWVHchhocTN97vg/Q0XV1xdhXk8zcnU2oqKLIcKpxwx18ofkh7i5CyGw7NrSyoVAH1uTsnQVXv3MDl/fZICZElOmvlrMxN/iVLC58bNqLaWdVGfxwwZLB8x1aV8nn6Lr4yAyl1YyGFOhLtih2mRJl6XIU43cs1ly7oog9u+K0mYHJkJ8u9G8u++3uZjExNRKPh/xDO28OiBpQqnS4KuqftkvtHf0XUB2y0ZTflU4xV+kpxEOkZIexMOMQG0OtBGmlU4MoRr6uK0zWKxt24zePujW0fKDo/SNtlBwfJknyJx+dzcEP972czJA0C7rZfGVwi1CVmrAAMBstmrAKyYL/XcvhenKR+qlInC1gKZ29262Ot9MDwYl7tieqn/YB/kD/FgirQqwmRzpbfOOXEv6gWcSIpr2Uy6J6K1/7fW7mkKm6QpnlhsA4LWTPEVFxs1bMaom/uGGTil/AIOwdQpXGgG4VS/xZyr+9nhM8wpFuJJgQGGZi8qEIbAsZuQxDA2aQNT5Pm5cTW+yk9KK3qr9px54GgPaCrI+Q=
   file: http-proxy-exporter-*
+  skip_cleanup: true
+  draft: true
   on:
     repo: criteo/http-proxy-exporter
+    tags: true
