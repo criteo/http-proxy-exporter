@@ -166,7 +166,7 @@ func main() {
 					continue
 				}
 				defer resp.Body.Close()
-				log.Debugf("%v: %v in %v\n", target, resp.StatusCode, duration)
+				log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
 				proxyConnectionSuccesses.WithLabelValues(proxyURL).Inc()
 				proxyRequests.WithLabelValues(proxyURL, target).Inc()
 				proxyRequestsSuccesses.WithLabelValues(proxyURL, target).Inc()
