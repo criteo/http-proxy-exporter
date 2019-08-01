@@ -113,7 +113,7 @@ func main() {
 	auth := config.AuthMethods["basic"]
 
 	// initialize proxy-related counters
-	for _, proxy := range proxyclient.ProxiesArray(config.Proxies) {
+	for _, proxy := range config.Proxies {
 		proxyConnectionErrors.WithLabelValues(proxy).Add(0)
 		proxyConnectionTentatives.WithLabelValues(proxy).Add(0)
 		proxyConnectionSuccesses.WithLabelValues(proxy).Add(0)
@@ -129,50 +129,52 @@ func main() {
 	}
 
 	for _, target := range config.Targets {
-		go func(target string) {
-			firstMeasurement := true
-			for {
-				// sleep at the beginning of the loop as there are continues (avoids code duplication)
-				if !firstMeasurement {
-					time.Sleep(time.Duration(config.Interval) * time.Second)
-				} else {
-					firstMeasurement = false
-				}
-				preq, err := proxyclient.MakeClientAndRequest(target, config.Proxies, auth, config.Insecure)
-				if err != nil {
-					log.Errorf("error while preparing request: %s", err)
-				}
-
-				// make the request (count a tentative and count request time)
-				proxyURL := preq.ProxyURL.String()
-				proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
-
-				startTime := time.Now()
-				resp, err := preq.Client.Do(preq.Request)
-				duration := float64(time.Now().Sub(startTime)) / float64(time.Second)
-
-				if err != nil {
-					if strings.Contains(err.Error(), "proxyconnect") {
-						// proxyconnect regroups errors that indicates the proxy could not be reached
-						log.Infof("could not connect to %s: %s", proxyURL, err)
-						proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+		for _, proxy := range config.Proxies {
+			// create 1 measurement goroutine by (target, proxy) tuple
+			go func(target string, proxy string) {
+				firstMeasurement := true
+				for {
+					// sleep at the beginning of the loop as there are continues (avoids code duplication)
+					if !firstMeasurement {
+						time.Sleep(time.Duration(config.Interval) * time.Second)
 					} else {
-						// the proxy replied but something bad happened
-						log.Infof("an error happened trying to reach %s via %s: %s", target, proxyURL, err)
-						proxyRequests.WithLabelValues(proxyURL, target).Inc()
-						proxyRequestsFailures.WithLabelValues(proxyURL, target).Inc()
+						firstMeasurement = false
 					}
-					log.Error(err)
-					continue
+					preq, err := proxyclient.MakeClientAndRequest(target, proxy, auth, config.Insecure)
+					if err != nil {
+						log.Errorf("error while preparing request: %s", err)
+					}
+
+					// make the request (count a tentative and count request time)
+					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+
+					startTime := time.Now()
+					resp, err := preq.Client.Do(preq.Request)
+					duration := float64(time.Now().Sub(startTime)) / float64(time.Second)
+
+					if err != nil {
+						if strings.Contains(err.Error(), "proxyconnect") {
+							// proxyconnect regroups errors that indicates the proxy could not be reached
+							log.Infof("could not connect to %s: %s", proxy, err)
+							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+						} else {
+							// the proxy replied but something bad happened
+							log.Infof("an error happened trying to reach %s via %s: %s", target, proxy, err)
+							proxyRequests.WithLabelValues(proxy, target).Inc()
+							proxyRequestsFailures.WithLabelValues(proxy, target).Inc()
+						}
+						log.Error(err)
+						continue
+					}
+					defer resp.Body.Close()
+					log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
+					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
+					proxyRequests.WithLabelValues(proxy, target).Inc()
+					proxyRequestsSuccesses.WithLabelValues(proxy, target).Inc()
+					proxyRequestsDurations.WithLabelValues(proxy, target).Observe(duration)
 				}
-				defer resp.Body.Close()
-				log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
-				proxyConnectionSuccesses.WithLabelValues(proxyURL).Inc()
-				proxyRequests.WithLabelValues(proxyURL, target).Inc()
-				proxyRequestsSuccesses.WithLabelValues(proxyURL, target).Inc()
-				proxyRequestsDurations.WithLabelValues(proxyURL, target).Observe(duration)
-			}
-		}(target)
+			}(target, proxy)
+		}
 	}
 
 	// start HTTP server to expose metrics in a Prometheus-friendly format

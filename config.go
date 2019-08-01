@@ -12,7 +12,7 @@ import (
 // Config is a configuration file
 type Config struct {
 	AuthMethods map[string]*proxyclient.AuthMethod `yaml:"auth_methods"`
-	Proxies     proxyclient.ProxiesList            `yaml:"proxies"`
+	Proxies     []string                           `yaml:"proxies"`
 	Targets     []string                           `yaml:"targets"`
 	ListenPort  int                                `yaml:"listen_port,omitempty"`
 	Interval    int                                `yaml:"interval,omitempty"`
@@ -46,12 +46,8 @@ func verifyConfig(config *Config) []error {
 	if len(config.AuthMethods) < 1 {
 		errs = append(errs, errors.New("at least one auth method must be provided"))
 	}
-	if config.Proxies == (proxyclient.ProxiesList{}) {
-		errs = append(errs, errors.New("a list of proxies must be provided"))
-	} else {
-		if config.Proxies.HTTP == "" || config.Proxies.HTTPS == "" {
-			errs = append(errs, errors.New("both HTTP and HTTPS proxies must be provided"))
-		}
+	if len(config.Proxies) < 1 {
+		errs = append(errs, errors.New("at least one proxy must be provided"))
 	}
 	if len(config.Targets) < 1 {
 		errs = append(errs, errors.New("at least one target must be provided"))

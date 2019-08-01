@@ -9,12 +9,6 @@ import (
 	"net/url"
 )
 
-// ProxiesList is a list of all proxies' URL by scheme
-type ProxiesList struct {
-	HTTP  string `yaml:"http"`
-	HTTPS string `yaml:"https"`
-}
-
 // AuthMethod represent a method to authenticate with a proxy
 type AuthMethod struct {
 	Type   string            `yaml:"type"`
@@ -82,7 +76,7 @@ func requestByAuthType(target string, auth *AuthMethod) (*http.Request, error) {
 }
 
 // MakeClientAndRequest prepares a client and a request
-func MakeClientAndRequest(target string, proxies ProxiesList, auth *AuthMethod, insecure bool) (*PreparedRequest, error) {
+func MakeClientAndRequest(target string, proxy string, auth *AuthMethod, insecure bool) (*PreparedRequest, error) {
 	// detect target URL scheme
 	scheme, err := GetURLScheme(target)
 	if err != nil {
@@ -90,9 +84,9 @@ func MakeClientAndRequest(target string, proxies ProxiesList, auth *AuthMethod, 
 	}
 
 	// get the right proxy based on target scheme, create the associated transport
-	proxyURL, err := proxyByScheme(scheme, proxies)
+	proxyURL, err := url.Parse(proxy)
 	if err != nil {
-		return nil, fmt.Errorf("could not get proxy URL: %s", err)
+		return nil, fmt.Errorf("could not parse proxy URL: %s", err)
 	}
 	tr := proxifiedTransport(proxyURL, insecure)
 

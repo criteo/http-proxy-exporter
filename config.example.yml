@@ -5,7 +5,7 @@ auth_methods:
       username: "username"
       password: "password"
 proxies:
-  http: "http://my-http-proxy:8080/"
-  https: "https//my-https-proxy:8443/"
+  - "http://my-http-proxy:8080/"
+  - "https//my-https-proxy:8443/"
 targets:
   - "https://www.example.com/"

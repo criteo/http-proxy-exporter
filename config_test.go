@@ -20,9 +20,9 @@ func TestLoadConfig(t *testing.T) {
 func TestVerifyConfig(t *testing.T) {
 	var errs []error
 
-	proxies := proxyclient.ProxiesList{
-		HTTP:  "http://proxy/",
-		HTTPS: "https://securedproxy/",
+	proxies := []string{
+		"http://proxy/",
+		"https://securedproxy/",
 	}
 
 	auth := &proxyclient.AuthMethod{
@@ -47,13 +47,8 @@ func TestVerifyConfig(t *testing.T) {
 	assert.Len(t, errs, 0)
 
 	noProxies := config
-	noProxies.Proxies = proxyclient.ProxiesList{}
+	noProxies.Proxies = []string{}
 	errs = verifyConfig(&noProxies)
-	assert.Len(t, errs, 1)
-
-	noHTTPS := config
-	noHTTPS.Proxies = proxyclient.ProxiesList{HTTP: "http://proxy/"}
-	errs = verifyConfig(&noHTTPS)
 	assert.Len(t, errs, 1)
 
 	noTargets := config
