@@ -34,6 +34,10 @@ func proxifiedTransport(proxyURL *url.URL, insecure bool) *http.Transport {
 			InsecureSkipVerify: insecure,
 		}
 	}
+	if proxyURL.String() == "" {
+		// override to nil if no proxy has been set (will use system proxy)
+		proxyURL = nil
+	}
 	tr := &http.Transport{
 		Proxy:           http.ProxyURL(proxyURL),
 		TLSClientConfig: tlsConfig,
