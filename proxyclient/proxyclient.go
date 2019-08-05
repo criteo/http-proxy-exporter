@@ -5,9 +5,19 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 )
+
+// RequestConfig is used to build a request
+type RequestConfig struct {
+	Target     string
+	Proxy      string
+	Auth       *AuthMethod
+	SourceAddr string
+	Insecure   bool
+}
 
 // AuthMethod represent a method to authenticate with a proxy
 type AuthMethod struct {
@@ -27,7 +37,7 @@ func basicAuth(username, password string) []string {
 	return []string{fmt.Sprintf("Basic %s", auth)}
 }
 
-func proxifiedTransport(proxyURL *url.URL, insecure bool) *http.Transport {
+func proxifiedTransport(proxyURL *url.URL, sourceAddr string, insecure bool) (*http.Transport, error) {
 	var tlsConfig *tls.Config
 	if proxyURL.Scheme == "https" {
 		tlsConfig = &tls.Config{
@@ -38,11 +48,25 @@ func proxifiedTransport(proxyURL *url.URL, insecure bool) *http.Transport {
 		// override to nil if no proxy has been set (will use system proxy)
 		proxyURL = nil
 	}
+
+	localAddr, err := net.ResolveIPAddr("ip", sourceAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	localTCPAddr := net.TCPAddr{
+		IP: localAddr.IP,
+	}
+
 	tr := &http.Transport{
 		Proxy:           http.ProxyURL(proxyURL),
 		TLSClientConfig: tlsConfig,
+		DialContext: (&net.Dialer{
+			LocalAddr: &localTCPAddr,
+			DualStack: true,
+		}).DialContext,
 	}
-	return tr
+	return tr, nil
 }
 
 func clientByAuthType(scheme string, auth *AuthMethod, tr *http.Transport) *http.Client {
@@ -80,23 +104,26 @@ func requestByAuthType(target string, auth *AuthMethod) (*http.Request, error) {
 }
 
 // MakeClientAndRequest prepares a client and a request
-func MakeClientAndRequest(target string, proxy string, auth *AuthMethod, insecure bool) (*PreparedRequest, error) {
+func MakeClientAndRequest(rc RequestConfig) (*PreparedRequest, error) {
 	// detect target URL scheme
-	scheme, err := GetURLScheme(target)
+	scheme, err := GetURLScheme(rc.Target)
 	if err != nil {
-		return nil, fmt.Errorf("could not detect scheme for %s: %s", target, err)
+		return nil, fmt.Errorf("could not detect scheme for %s: %s", rc.Target, err)
 	}
 
 	// get the right proxy based on target scheme, create the associated transport
-	proxyURL, err := url.Parse(proxy)
+	proxyURL, err := url.Parse(rc.Proxy)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse proxy URL: %s", err)
 	}
-	tr := proxifiedTransport(proxyURL, insecure)
+	tr, err := proxifiedTransport(proxyURL, rc.SourceAddr, rc.Insecure)
+	if err != nil {
+		return nil, err
+	}
 
 	// create the client and the actual request
-	client := clientByAuthType(scheme, auth, tr)
-	req, err := requestByAuthType(target, auth)
+	client := clientByAuthType(scheme, rc.Auth, tr)
+	req, err := requestByAuthType(rc.Target, rc.Auth)
 	if err != nil {
 		return nil, fmt.Errorf("error during request creation: %s", err)
 	}

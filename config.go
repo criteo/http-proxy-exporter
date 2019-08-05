@@ -11,13 +11,14 @@ import (
 
 // Config is a configuration file
 type Config struct {
-	AuthMethods map[string]*proxyclient.AuthMethod `yaml:"auth_methods"`
-	Proxies     []string                           `yaml:"proxies"`
-	Targets     []string                           `yaml:"targets"`
-	ListenPort  int                                `yaml:"listen_port,omitempty"`
-	Interval    int                                `yaml:"interval,omitempty"`
-	Insecure    bool                               `yaml:"insecure,omitempty"`
-	Debug       bool                               `yaml:"debug,omitempty"`
+	AuthMethods   map[string]*proxyclient.AuthMethod `yaml:"auth_methods"`
+	Proxies       []string                           `yaml:"proxies"`
+	Targets       []string                           `yaml:"targets"`
+	SourceAddress string                             `yaml:"source_address,omitempty"`
+	ListenPort    int                                `yaml:"listen_port,omitempty"`
+	Interval      int                                `yaml:"interval,omitempty"`
+	Insecure      bool                               `yaml:"insecure,omitempty"`
+	Debug         bool                               `yaml:"debug,omitempty"`
 }
 
 // loadConfig loads a configuration file and returns the corresponding struct pointer
