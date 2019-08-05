@@ -140,7 +140,15 @@ func main() {
 					} else {
 						firstMeasurement = false
 					}
-					preq, err := proxyclient.MakeClientAndRequest(target, proxy, auth, config.Insecure)
+
+					requestConfig := proxyclient.RequestConfig{
+						Target:     target,
+						Proxy:      proxy,
+						Auth:       auth,
+						SourceAddr: config.SourceAddress,
+						Insecure:   config.Insecure,
+					}
+					preq, err := proxyclient.MakeClientAndRequest(requestConfig)
 					if err != nil {
 						log.Errorf("error while preparing request: %s", err)
 					}
