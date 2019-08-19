@@ -100,6 +100,9 @@ func requestByAuthType(target string, auth *AuthMethod) (*http.Request, error) {
 		}
 		return req, nil
 	}
+	if auth.Type == "" {
+		return http.NewRequest("GET", target, nil)
+	}
 	return nil, fmt.Errorf("unknown or unsupported authType: %s", auth.Type)
 }
 

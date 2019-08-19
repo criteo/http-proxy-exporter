@@ -57,5 +57,5 @@ func TestVerifyConfig(t *testing.T) {
 	assert.Len(t, errs, 1)
 
 	errs = verifyConfig(&Config{})
-	assert.Len(t, errs, 3)
+	assert.Len(t, errs, 2)
 }

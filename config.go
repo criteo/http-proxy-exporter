@@ -11,7 +11,7 @@ import (
 
 // Config is a configuration file
 type Config struct {
-	AuthMethods   map[string]*proxyclient.AuthMethod `yaml:"auth_methods"`
+	AuthMethods   map[string]*proxyclient.AuthMethod `yaml:"auth_methods,omitempty"`
 	Proxies       []string                           `yaml:"proxies"`
 	Targets       []string                           `yaml:"targets"`
 	SourceAddress string                             `yaml:"source_address,omitempty"`
@@ -44,9 +44,6 @@ func loadConfig(filename string) (*Config, error) {
 func verifyConfig(config *Config) []error {
 	var errs []error
 
-	if len(config.AuthMethods) < 1 {
-		errs = append(errs, errors.New("at least one auth method must be provided"))
-	}
 	if len(config.Proxies) < 1 {
 		errs = append(errs, errors.New("at least one proxy must be provided"))
 	}
