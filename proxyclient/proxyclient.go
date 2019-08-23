@@ -65,6 +65,8 @@ func proxifiedTransport(proxyURL *url.URL, sourceAddr string, insecure bool) (*h
 			LocalAddr: &localTCPAddr,
 			DualStack: true,
 		}).DialContext,
+		MaxIdleConnsPerHost: 1,
+		DisableKeepAlives:   true,
 	}
 	return tr, nil
 }
