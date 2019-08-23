@@ -180,7 +180,7 @@ func main() {
 						log.Error(err)
 						continue
 					}
-					defer resp.Body.Close()
+					resp.Body.Close()
 					log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target).Inc()
