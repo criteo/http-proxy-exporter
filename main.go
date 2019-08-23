@@ -137,6 +137,15 @@ func main() {
 			// create 1 measurement goroutine by (target, proxy) tuple
 			go func(target string, proxy string) {
 				firstMeasurement := true
+
+				requestConfig := proxyclient.RequestConfig{
+					Target:     target,
+					Proxy:      proxy,
+					Auth:       auth,
+					SourceAddr: config.SourceAddress,
+					Insecure:   config.Insecure,
+				}
+
 				for {
 					// sleep at the beginning of the loop as there are continues (avoids code duplication)
 					if !firstMeasurement {
@@ -145,13 +154,6 @@ func main() {
 						firstMeasurement = false
 					}
 
-					requestConfig := proxyclient.RequestConfig{
-						Target:     target,
-						Proxy:      proxy,
-						Auth:       auth,
-						SourceAddr: config.SourceAddress,
-						Insecure:   config.Insecure,
-					}
 					preq, err := proxyclient.MakeClientAndRequest(requestConfig)
 					if err != nil {
 						log.Errorf("error while preparing request: %s", err)
@@ -178,7 +180,7 @@ func main() {
 						log.Error(err)
 						continue
 					}
-					defer resp.Body.Close()
+					resp.Body.Close()
 					log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target).Inc()
