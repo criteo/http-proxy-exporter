@@ -159,9 +159,6 @@ func main() {
 						log.Errorf("error while preparing request: %s", err)
 					}
 
-					// make the request (count a tentative and count request time)
-					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
-
 					startTime := time.Now()
 					resp, err := preq.Client.Do(preq.Request)
 					duration := float64(time.Now().Sub(startTime)) / float64(time.Second)
@@ -171,9 +168,12 @@ func main() {
 							// proxyconnect regroups errors that indicates the proxy could not be reached
 							log.Infof("could not connect to %s: %s", proxy, err)
 							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+							proxyConnectionErrors.WithLabelValues(proxy).Inc()
 						} else {
 							// the proxy replied but something bad happened
 							log.Infof("an error happened trying to reach %s via %s: %s", target, proxy, err)
+							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+							proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 							proxyRequests.WithLabelValues(proxy, target).Inc()
 							proxyRequestsFailures.WithLabelValues(proxy, target).Inc()
 						}
@@ -182,6 +182,7 @@ func main() {
 					}
 					resp.Body.Close()
 					log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
+					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target).Inc()
 					proxyRequestsSuccesses.WithLabelValues(proxy, target).Inc()
