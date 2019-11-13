@@ -54,9 +54,14 @@ var (
 		Help: "Number of failed requests.",
 	}, []string{"proxy_url", "resource_url"})
 
+	proxyRequestDurations = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "proxy_request_time_seconds",
+		Help: "Gauge of durations for each request",
+	}, []string{"proxy_url", "resource_url"})
+
 	proxyRequestsDurations = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name: "proxy_requests_time_seconds",
-		Help: "Duration of requests.",
+		Help: "Histogram of requests durations.",
 	}, []string{"proxy_url", "resource_url"})
 )
 
@@ -74,6 +79,7 @@ func init() {
 	prometheus.MustRegister(proxyRequests)
 	prometheus.MustRegister(proxyRequestsSuccesses)
 	prometheus.MustRegister(proxyRequestsFailures)
+	prometheus.MustRegister(proxyRequestDurations)
 	prometheus.MustRegister(proxyRequestsDurations)
 }
 
@@ -186,6 +192,7 @@ func main() {
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target).Inc()
 					proxyRequestsSuccesses.WithLabelValues(proxy, target).Inc()
+					proxyRequestDurations.WithLabelValues(proxy, target).Set(duration)
 					proxyRequestsDurations.WithLabelValues(proxy, target).Observe(duration)
 				}
 			}(target, proxy)
