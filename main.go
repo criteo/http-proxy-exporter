@@ -55,8 +55,8 @@ var (
 	}, []string{"proxy_url", "resource_url"})
 
 	proxyRequestDurations = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "proxy_request_time_seconds",
-		Help: "Gauge of durations for each request",
+		Name: "proxy_request_rtt_seconds",
+		Help: "Gauge of round trip time for each request",
 	}, []string{"proxy_url", "resource_url"})
 
 	proxyRequestsDurations = prometheus.NewHistogramVec(prometheus.HistogramOpts{
