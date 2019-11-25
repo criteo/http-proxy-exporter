@@ -26,6 +26,8 @@ var (
 	printVersion bool
 
 	config Config
+
+	sleepInterval time.Duration
 )
 
 var (
@@ -99,6 +101,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
+	sleepInterval = time.Duration(config.Interval) * time.Second
 
 	// verify configuration
 	errs := verifyConfig(config)
@@ -143,6 +146,7 @@ func main() {
 			// create 1 measurement goroutine by (target, proxy) tuple
 			go func(target string, proxy string) {
 				firstMeasurement := true
+				var duration time.Duration
 
 				requestConfig := proxyclient.RequestConfig{
 					Target:     target,
@@ -155,7 +159,7 @@ func main() {
 				for {
 					// sleep at the beginning of the loop as there are continues (avoids code duplication)
 					if !firstMeasurement {
-						time.Sleep(time.Duration(config.Interval) * time.Second)
+						time.Sleep(sleepInterval - duration)
 					} else {
 						firstMeasurement = false
 					}
@@ -167,7 +171,7 @@ func main() {
 
 					startTime := time.Now()
 					resp, err := preq.Client.Do(preq.Request)
-					duration := float64(time.Now().Sub(startTime)) / float64(time.Second)
+					duration := time.Now().Sub(startTime)
 
 					if err != nil {
 						if strings.Contains(err.Error(), "proxyconnect") {
@@ -187,13 +191,13 @@ func main() {
 						continue
 					}
 					resp.Body.Close()
-					log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
+					log.Debugf("%v: %v in %v", target, resp.StatusCode, duration)
 					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target).Inc()
 					proxyRequestsSuccesses.WithLabelValues(proxy, target).Inc()
-					proxyRequestDurations.WithLabelValues(proxy, target).Set(duration)
-					proxyRequestsDurations.WithLabelValues(proxy, target).Observe(duration)
+					proxyRequestDurations.WithLabelValues(proxy, target).Set(duration.Seconds())
+					proxyRequestsDurations.WithLabelValues(proxy, target).Observe(duration.Seconds())
 				}
 			}(target, proxy)
 		}
