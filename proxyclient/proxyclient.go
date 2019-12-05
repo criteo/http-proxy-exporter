@@ -37,9 +37,9 @@ func basicAuth(username, password string) []string {
 	return []string{fmt.Sprintf("Basic %s", auth)}
 }
 
-func proxifiedTransport(proxyURL *url.URL, sourceAddr string, insecure bool) (*http.Transport, error) {
+func proxifiedTransport(proxyURL *url.URL, targetScheme string, sourceAddr string, insecure bool) (*http.Transport, error) {
 	var tlsConfig *tls.Config
-	if proxyURL.Scheme == "https" {
+	if proxyURL.Scheme == "https" || targetScheme == "https" {
 		tlsConfig = &tls.Config{
 			InsecureSkipVerify: insecure,
 		}
@@ -121,7 +121,7 @@ func MakeClientAndRequest(rc RequestConfig) (*PreparedRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not parse proxy URL: %s", err)
 	}
-	tr, err := proxifiedTransport(proxyURL, rc.SourceAddr, rc.Insecure)
+	tr, err := proxifiedTransport(proxyURL, scheme, rc.SourceAddr, rc.Insecure)
 	if err != nil {
 		return nil, err
 	}
