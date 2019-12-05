@@ -117,7 +117,6 @@ func main() {
 
 	// FIXME: find a better way to handle multiple auth methods (once they exist)
 	auth := &proxyclient.AuthMethod{}
-	fmt.Printf("%#v", auth)
 	if len(config.AuthMethods) > 0 {
 		auth = config.AuthMethods["basic"]
 	}
