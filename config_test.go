@@ -18,6 +18,7 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestVerifyConfig(t *testing.T) {
+	var targets []Target
 	var errs []error
 
 	proxies := []string{
@@ -33,7 +34,11 @@ func TestVerifyConfig(t *testing.T) {
 		},
 	}
 
-	targets := []string{"https://www.example.com"}
+	target := Target{
+		URL: "https://www.example.com/",
+	}
+
+	targets = append(targets, target)
 
 	config := Config{
 		AuthMethods: map[string]*proxyclient.AuthMethod{
@@ -52,7 +57,7 @@ func TestVerifyConfig(t *testing.T) {
 	assert.Len(t, errs, 1)
 
 	noTargets := config
-	noTargets.Targets = []string{}
+	noTargets.Targets = []Target{}
 	errs = verifyConfig(&noTargets)
 	assert.Len(t, errs, 1)
 

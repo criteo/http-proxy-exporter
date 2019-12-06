@@ -13,12 +13,17 @@ import (
 type Config struct {
 	AuthMethods   map[string]*proxyclient.AuthMethod `yaml:"auth_methods,omitempty"`
 	Proxies       []string                           `yaml:"proxies"`
-	Targets       []string                           `yaml:"targets"`
+	Targets       []Target                           `yaml:"targets"`
 	SourceAddress string                             `yaml:"source_address,omitempty"`
 	ListenPort    int                                `yaml:"listen_port,omitempty"`
 	Interval      int                                `yaml:"interval,omitempty"`
-	Insecure      bool                               `yaml:"insecure,omitempty"`
 	Debug         bool                               `yaml:"debug,omitempty"`
+}
+
+// Target is a HTTP(S) service that will be probed
+type Target struct {
+	URL      string `yaml:"url"`
+	Insecure bool   `yaml:"insecure,omitempty"`
 }
 
 // loadConfig loads a configuration file and returns the corresponding struct pointer

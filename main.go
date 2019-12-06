@@ -68,7 +68,6 @@ var (
 func init() {
 	flag.BoolVar(&printVersion, "version", false, "Print version and exit.")
 	flag.BoolVar(&config.Debug, "debug", false, "Enable debug logs.")
-	flag.BoolVar(&config.Insecure, "insecure", false, "Skip certificates verification for proxy.")
 	flag.StringVar(&configFile, "config_file", "config.yml", "Path to configuration file.")
 	flag.IntVar(&config.Interval, "interval", 10, "Delay between each request.")
 	flag.IntVar(&config.ListenPort, "listen_port", 8000, "Prometheus HTTP server port.")
@@ -128,11 +127,9 @@ func main() {
 		proxyConnectionSuccesses.WithLabelValues(proxy).Add(0)
 		for _, target := range config.Targets {
 			proxyScheme, err := proxyclient.GetURLScheme(proxy)
-			targetScheme, err := proxyclient.GetURLScheme(target)
+			targetScheme, err := proxyclient.GetURLScheme(target.URL)
 			if err == nil && proxyScheme == targetScheme {
-				proxyRequests.WithLabelValues(proxy, target).Add(0)
-				proxyRequestsSuccesses.WithLabelValues(proxy, target).Add(0)
-				proxyRequestsFailures.WithLabelValues(proxy, target).Add(0)
+				proxyRequests.WithLabelValues(proxy, target.URL).Add(0)
 			}
 		}
 	}
@@ -140,15 +137,15 @@ func main() {
 	for _, target := range config.Targets {
 		for _, proxy := range config.Proxies {
 			// create 1 measurement goroutine by (target, proxy) tuple
-			go func(target string, proxy string) {
+			go func(target Target, proxy string) {
 				firstMeasurement := true
 
 				requestConfig := proxyclient.RequestConfig{
-					Target:     target,
+					Target:     target.URL,
 					Proxy:      proxy,
 					Auth:       auth,
 					SourceAddr: config.SourceAddress,
-					Insecure:   config.Insecure,
+					Insecure:   target.Insecure,
 				}
 
 				for {
@@ -176,23 +173,23 @@ func main() {
 							proxyConnectionErrors.WithLabelValues(proxy).Inc()
 						} else {
 							// the proxy replied but something bad happened
-							log.Infof("an error happened trying to reach %s via %s: %s", target, proxy, err)
+							log.Infof("an error happened trying to reach %s via %s: %s", target.URL, proxy, err)
 							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 							proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-							proxyRequests.WithLabelValues(proxy, target).Inc()
-							proxyRequestsFailures.WithLabelValues(proxy, target).Inc()
+							proxyRequests.WithLabelValues(proxy, target.URL).Inc()
+							proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
 						}
 						log.Error(err)
 						continue
 					}
 					resp.Body.Close()
-					log.Debugf("%v: %v in %vs", target, resp.StatusCode, duration)
+					log.Debugf("%v: %v in %vs", target.URL, resp.StatusCode, duration)
 					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-					proxyRequests.WithLabelValues(proxy, target).Inc()
-					proxyRequestsSuccesses.WithLabelValues(proxy, target).Inc()
-					proxyRequestDurations.WithLabelValues(proxy, target).Set(duration)
-					proxyRequestsDurations.WithLabelValues(proxy, target).Observe(duration)
+					proxyRequests.WithLabelValues(proxy, target.URL).Inc()
+					proxyRequestsSuccesses.WithLabelValues(proxy, target.URL).Inc()
+					proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
+					proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
 				}
 			}(target, proxy)
 		}
