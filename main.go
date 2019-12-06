@@ -48,7 +48,7 @@ var (
 	proxyRequestsSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_requests_successes_total",
 		Help: "Number of successful requests.",
-	}, []string{"proxy_url", "resource_url"})
+	}, []string{"proxy_url", "resource_url", "status_code"})
 	proxyRequestsFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_requests_failure_total",
 		Help: "Number of failed requests.",
@@ -138,6 +138,8 @@ func main() {
 		for _, proxy := range config.Proxies {
 			// create 1 measurement goroutine by (target, proxy) tuple
 			go func(target Target, proxy string) {
+				var statusCode string
+
 				firstMeasurement := true
 
 				requestConfig := proxyclient.RequestConfig{
@@ -183,11 +185,12 @@ func main() {
 						continue
 					}
 					resp.Body.Close()
-					log.Debugf("%v: %v in %vs", target.URL, resp.StatusCode, duration)
+					statusCode = fmt.Sprintf("%d", resp.StatusCode)
+					log.Debugf("%v: %v in %vs", target.URL, statusCode, duration)
 					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-					proxyRequestsSuccesses.WithLabelValues(proxy, target.URL).Inc()
+					proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, statusCode).Inc()
 					proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
 					proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
 				}
