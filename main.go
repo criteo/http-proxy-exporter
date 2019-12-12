@@ -59,15 +59,13 @@ var (
 		Help: "Gauge of round trip time for each request",
 	}, []string{"proxy_url", "resource_url"})
 
-	proxyRequestsDurations = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name: "proxy_requests_rtt_seconds",
-		Help: "Histogram of requests durations.",
-	}, []string{"proxy_url", "resource_url"})
+	proxyRequestsDurations prometheus.HistogramVec
 )
 
 func init() {
 	flag.BoolVar(&printVersion, "version", false, "Print version and exit.")
 	flag.BoolVar(&config.Debug, "debug", false, "Enable debug logs.")
+	flag.BoolVar(&config.HighPrecision, "high_precision", false, "Enable low latency precision mode.")
 	flag.StringVar(&configFile, "config_file", "config.yml", "Path to configuration file.")
 	flag.IntVar(&config.Interval, "interval", 10, "Delay between each request.")
 	flag.IntVar(&config.ListenPort, "listen_port", 8000, "Prometheus HTTP server port.")
@@ -79,11 +77,33 @@ func init() {
 	prometheus.MustRegister(proxyRequestsSuccesses)
 	prometheus.MustRegister(proxyRequestsFailures)
 	prometheus.MustRegister(proxyRequestDurations)
+}
+
+func initHistogram() {
+	var bucket []float64
+	if config.HighPrecision {
+		bucket = []float64{.0025, .005, .0075, .01, .0125, .015, .0175, .02, .025, .035, .05, .075, .1, .2, 1}
+	}
+
+	proxyRequestsDurations = *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "proxy_requests_rtt_seconds",
+		Help:    "Histogram of requests durations.",
+		Buckets: bucket,
+	}, []string{"proxy_url", "resource_url"})
+
 	prometheus.MustRegister(proxyRequestsDurations)
 }
 
 func main() {
+	// load configuration
+	config, err := loadConfig(configFile)
+	if err != nil {
+		log.Fatalf("error while loading config: %s", err)
+	}
+
 	flag.Parse()
+
+	initHistogram()
 
 	if printVersion {
 		fmt.Println(appName)
@@ -91,12 +111,6 @@ func main() {
 		fmt.Println("build:", buildNumber)
 		fmt.Println("build time:", buildTime)
 		os.Exit(0)
-	}
-
-	// load configuration
-	config, err := loadConfig(configFile)
-	if err != nil {
-		log.Fatalf("error while loading config: %s", err)
 	}
 
 	// verify configuration
