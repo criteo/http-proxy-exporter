@@ -95,15 +95,7 @@ func initHistogram() {
 }
 
 func main() {
-	// load configuration
-	config, err := loadConfig(configFile)
-	if err != nil {
-		log.Fatalf("error while loading config: %s", err)
-	}
-
 	flag.Parse()
-
-	initHistogram()
 
 	if printVersion {
 		fmt.Println(appName)
@@ -112,6 +104,14 @@ func main() {
 		fmt.Println("build time:", buildTime)
 		os.Exit(0)
 	}
+
+	// load configuration
+	config, err := loadConfig(configFile)
+	if err != nil {
+		log.Fatalf("error while loading config: %s", err)
+	}
+
+	initHistogram()
 
 	// verify configuration
 	errs := verifyConfig(config)
