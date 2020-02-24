@@ -29,6 +29,14 @@ var (
 )
 
 var (
+	proxyLookupSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "proxy_lookup_successes_total",
+		Help: "Number of successful DNS lookup.",
+	}, []string{"proxy_url"})
+	proxyLookupFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "proxy_lookup_failure_total",
+		Help: "Number of failed DNS lookup.",
+	}, []string{"proxy_url"})
 	proxyConnectionTentatives = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_connection_tentatives_total",
 		Help: "Total number of tentatives (including proxy connection errors).",
@@ -70,6 +78,8 @@ func init() {
 	flag.IntVar(&config.Interval, "interval", 10, "Delay between each request.")
 	flag.IntVar(&config.ListenPort, "listen_port", 8000, "Prometheus HTTP server port.")
 
+	prometheus.MustRegister(proxyLookupSuccesses)
+	prometheus.MustRegister(proxyLookupFailures)
 	prometheus.MustRegister(proxyConnectionTentatives)
 	prometheus.MustRegister(proxyConnectionSuccesses)
 	prometheus.MustRegister(proxyConnectionErrors)
@@ -136,6 +146,8 @@ func main() {
 
 	// initialize proxy-related counters
 	for _, proxy := range config.Proxies {
+		proxyLookupSuccesses.WithLabelValues(proxy).Add(0)
+		proxyLookupFailures.WithLabelValues(proxy).Add(0)
 		proxyConnectionErrors.WithLabelValues(proxy).Add(0)
 		proxyConnectionTentatives.WithLabelValues(proxy).Add(0)
 		proxyConnectionSuccesses.WithLabelValues(proxy).Add(0)
@@ -184,9 +196,15 @@ func main() {
 					if err != nil {
 						if strings.Contains(err.Error(), "proxyconnect") {
 							// proxyconnect regroups errors that indicates the proxy could not be reached
-							log.Infof("could not connect to %s: %s", proxy, err)
 							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 							proxyConnectionErrors.WithLabelValues(proxy).Inc()
+							if strings.Contains(err.Error(), "lookup") {
+								// catch DNS related errors
+								log.Infof("could not resolve %s: %s", proxy, err)
+								proxyLookupFailures.WithLabelValues(proxy).Inc()
+							} else {
+								log.Infof("could not connect to %s: %s", proxy, err)
+							}
 						} else {
 							// the proxy replied but something bad happened
 							log.Infof("an error happened trying to reach %s via %s: %s", target.URL, proxy, err)
@@ -201,6 +219,7 @@ func main() {
 					resp.Body.Close()
 					statusCode = fmt.Sprintf("%d", resp.StatusCode)
 					log.Debugf("%v: %v in %vs", target.URL, statusCode, duration)
+					proxyLookupSuccesses.WithLabelValues(proxy).Inc()
 					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 					proxyRequests.WithLabelValues(proxy, target.URL).Inc()
