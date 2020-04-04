@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // RequestConfig is used to build a request
@@ -17,6 +18,7 @@ type RequestConfig struct {
 	Auth       *AuthMethod
 	SourceAddr string
 	Insecure   bool
+	Timeout    time.Duration
 }
 
 // AuthMethod represent a method to authenticate with a proxy
@@ -71,7 +73,7 @@ func proxifiedTransport(proxyURL *url.URL, targetScheme string, sourceAddr strin
 	return tr, nil
 }
 
-func clientByAuthType(scheme string, auth *AuthMethod, tr *http.Transport) *http.Client {
+func clientByAuthType(scheme string, auth *AuthMethod, tr *http.Transport, timeout time.Duration) *http.Client {
 	if auth.Type == "basic" {
 		if scheme == "https" {
 			// basicauth
@@ -82,7 +84,10 @@ func clientByAuthType(scheme string, auth *AuthMethod, tr *http.Transport) *http
 			tr.ProxyConnectHeader = proxyHeader
 		}
 	}
-	return &http.Client{Transport: tr}
+	return &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+	}
 }
 
 func requestByAuthType(target string, auth *AuthMethod) (*http.Request, error) {
@@ -127,7 +132,7 @@ func MakeClientAndRequest(rc RequestConfig) (*PreparedRequest, error) {
 	}
 
 	// create the client and the actual request
-	client := clientByAuthType(scheme, rc.Auth, tr)
+	client := clientByAuthType(scheme, rc.Auth, tr, rc.Timeout)
 	req, err := requestByAuthType(rc.Target, rc.Auth)
 	if err != nil {
 		return nil, fmt.Errorf("error during request creation: %s", err)
