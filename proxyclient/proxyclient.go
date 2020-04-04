@@ -34,9 +34,9 @@ type PreparedRequest struct {
 	ProxyURL *url.URL
 }
 
-func basicAuth(username, password string) []string {
+func basicAuth(username, password string) string {
 	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", username, password)))
-	return []string{fmt.Sprintf("Basic %s", auth)}
+	return fmt.Sprintf("Basic %s", auth)
 }
 
 func proxifiedTransport(proxyURL *url.URL, targetScheme string, sourceAddr string, insecure bool) (*http.Transport, error) {
@@ -78,10 +78,8 @@ func clientByAuthType(scheme string, auth *AuthMethod, tr *http.Transport, timeo
 		if scheme == "https" {
 			// basicauth
 			auth := basicAuth(auth.Params["username"], auth.Params["password"])
-			proxyHeader := map[string][]string{
-				"Proxy-Authorization": auth,
-			}
-			tr.ProxyConnectHeader = proxyHeader
+			tr.ProxyConnectHeader = http.Header{}
+			tr.ProxyConnectHeader.Set("Proxy-Authorization", auth)
 		}
 	}
 	return &http.Client{
@@ -102,7 +100,7 @@ func requestByAuthType(target string, auth *AuthMethod) (*http.Request, error) {
 			return nil, fmt.Errorf("error while creating request: %s", err)
 		}
 		if scheme == "http" {
-			auth := basicAuth(auth.Params["username"], auth.Params["password"])[0]
+			auth := basicAuth(auth.Params["username"], auth.Params["password"])
 			req.Header.Add("Proxy-Authorization", auth)
 		}
 		return req, nil
