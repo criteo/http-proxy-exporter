@@ -94,71 +94,8 @@ func main() {
 		for _, proxy := range config.Proxies {
 			// create 1 measurement goroutine by (target, proxy) tuple
 			go func(target Target, proxy string) {
-				var statusCode string
-
-				firstMeasurement := true
-
-				requestConfig := proxyclient.RequestConfig{
-					Target:     target.URL,
-					Proxy:      proxy,
-					Auth:       auth,
-					SourceAddr: config.SourceAddress,
-					Insecure:   target.Insecure,
-				}
-
-				for {
-					// sleep at the beginning of the loop as there are continues (avoids code duplication)
-					if !firstMeasurement {
-						time.Sleep(time.Duration(config.Interval) * time.Second)
-					} else {
-						firstMeasurement = false
-					}
-
-					preq, err := proxyclient.MakeClientAndRequest(requestConfig)
-					if err != nil {
-						log.Errorf("error while preparing request: %s", err)
-					}
-
-					startTime := time.Now()
-					resp, err := preq.Client.Do(preq.Request)
-					duration := float64(time.Now().Sub(startTime)) / float64(time.Second)
-
-					if err != nil {
-						if strings.Contains(err.Error(), "proxyconnect") {
-							// proxyconnect regroups errors that indicates the proxy could not be reached
-							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
-							proxyConnectionErrors.WithLabelValues(proxy).Inc()
-							if strings.Contains(err.Error(), "lookup") {
-								// catch DNS related errors
-								log.Infof("could not resolve %s: %s", proxy, err)
-								proxyLookupFailures.WithLabelValues(proxy).Inc()
-							} else {
-								log.Infof("could not connect to %s: %s", proxy, err)
-							}
-						} else {
-							// the proxy replied but something bad happened
-							log.Infof("an error happened trying to reach %s via %s: %s", target.URL, proxy, err)
-							proxyConnectionTentatives.WithLabelValues(proxy).Inc()
-							proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-							proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-							proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
-						}
-						log.Error(err)
-						continue
-					}
-					resp.Body.Close()
-					statusCode = fmt.Sprintf("%d", resp.StatusCode)
-					log.Debugf("%v: %v in %vs", target.URL, statusCode, duration)
-					proxyLookupSuccesses.WithLabelValues(proxy).Inc()
-					proxyConnectionTentatives.WithLabelValues(proxy).Inc()
-					proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-					proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-					proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, statusCode).Inc()
-					proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
-
-					if config.HighPrecision {
-						proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
-					}
+				for range time.Tick(time.Duration(config.Interval) * time.Second) {
+					measureOne(proxy, target, auth)
 				}
 			}(target, proxy)
 		}
@@ -169,4 +106,62 @@ func main() {
 	log.Infof("Starting HTTP server on %s", addr)
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
+	requestConfig := proxyclient.RequestConfig{
+		Target:     target.URL,
+		Proxy:      proxy,
+		Auth:       auth,
+		SourceAddr: config.SourceAddress,
+		Insecure:   target.Insecure,
+		Timeout:    time.Duration(config.Interval) * time.Second,
+	}
+
+	preq, err := proxyclient.MakeClientAndRequest(requestConfig)
+	if err != nil {
+		log.Errorf("error while preparing request: %s", err)
+	}
+
+	startTime := time.Now()
+	resp, err := preq.Client.Do(preq.Request)
+	duration := time.Now().Sub(startTime).Seconds()
+
+	if err != nil {
+		if strings.Contains(err.Error(), "proxyconnect") {
+			// proxyconnect regroups errors that indicates the proxy could not be reached
+			proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+			proxyConnectionErrors.WithLabelValues(proxy).Inc()
+			if strings.Contains(err.Error(), "lookup") {
+				// catch DNS related errors
+				log.Infof("could not resolve %s: %s", proxy, err)
+				proxyLookupFailures.WithLabelValues(proxy).Inc()
+			} else {
+				log.Infof("could not connect to %s: %s", proxy, err)
+			}
+		} else {
+			// the proxy replied but something bad happened
+			log.Infof("an error happened trying to reach %s via %s: %s", target.URL, proxy, err)
+			proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+			proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
+			proxyRequests.WithLabelValues(proxy, target.URL).Inc()
+			proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
+		}
+		log.Error(err)
+		return
+	}
+
+	resp.Body.Close()
+	statusCode := fmt.Sprintf("%d", resp.StatusCode)
+	log.Debugf("%v: %v in %vs", target.URL, statusCode, duration)
+	proxyLookupSuccesses.WithLabelValues(proxy).Inc()
+	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+	proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
+	proxyRequests.WithLabelValues(proxy, target.URL).Inc()
+	proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, statusCode).Inc()
+	proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
+
+	if config.HighPrecision {
+		proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
+	}
 }
