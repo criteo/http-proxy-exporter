@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/criteo/http-proxy-exporter/proxyclient"
-	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 
@@ -28,48 +27,6 @@ var (
 	config Config
 )
 
-var (
-	proxyLookupSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_lookup_successes_total",
-		Help: "Number of successful DNS lookup.",
-	}, []string{"proxy_url"})
-	proxyLookupFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_lookup_failure_total",
-		Help: "Number of failed DNS lookup.",
-	}, []string{"proxy_url"})
-	proxyConnectionTentatives = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_connection_tentatives_total",
-		Help: "Total number of tentatives (including proxy connection errors).",
-	}, []string{"proxy_url"})
-	proxyConnectionSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_connection_successes_total",
-		Help: "Number of successful connections towards proxy.",
-	}, []string{"proxy_url"})
-	proxyConnectionErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_connection_errors_total",
-		Help: "Number of connection errors towards proxy.",
-	}, []string{"proxy_url"})
-	proxyRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_requests_total",
-		Help: "Total number of requests sent to proxy",
-	}, []string{"proxy_url", "resource_url"})
-	proxyRequestsSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_requests_successes_total",
-		Help: "Number of successful requests.",
-	}, []string{"proxy_url", "resource_url", "status_code"})
-	proxyRequestsFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_requests_failure_total",
-		Help: "Number of failed requests.",
-	}, []string{"proxy_url", "resource_url"})
-
-	proxyRequestDurations = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "proxy_request_rtt_seconds",
-		Help: "Gauge of round trip time for each request",
-	}, []string{"proxy_url", "resource_url"})
-
-	proxyRequestsDurations prometheus.HistogramVec
-)
-
 func init() {
 	flag.BoolVar(&printVersion, "version", false, "Print version and exit.")
 	flag.BoolVar(&config.Debug, "debug", false, "Enable debug logs.")
@@ -77,31 +34,6 @@ func init() {
 	flag.StringVar(&configFile, "config_file", "config.yml", "Path to configuration file.")
 	flag.IntVar(&config.Interval, "interval", 10, "Delay between each request.")
 	flag.IntVar(&config.ListenPort, "listen_port", 8000, "Prometheus HTTP server port.")
-
-	prometheus.MustRegister(proxyLookupSuccesses)
-	prometheus.MustRegister(proxyLookupFailures)
-	prometheus.MustRegister(proxyConnectionTentatives)
-	prometheus.MustRegister(proxyConnectionSuccesses)
-	prometheus.MustRegister(proxyConnectionErrors)
-	prometheus.MustRegister(proxyRequests)
-	prometheus.MustRegister(proxyRequestsSuccesses)
-	prometheus.MustRegister(proxyRequestsFailures)
-	prometheus.MustRegister(proxyRequestDurations)
-}
-
-func initHistogram() {
-	var bucket []float64
-	if config.HighPrecision {
-		bucket = []float64{.0025, .005, .0075, .01, .0125, .015, .0175, .02, .025, .035, .05, .075, .1, .2, 1}
-	}
-
-	proxyRequestsDurations = *prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "proxy_requests_rtt_seconds",
-		Help:    "Histogram of requests durations.",
-		Buckets: bucket,
-	}, []string{"proxy_url", "resource_url"})
-
-	prometheus.MustRegister(proxyRequestsDurations)
 }
 
 func main() {
@@ -120,8 +52,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
-
-	initHistogram()
 
 	// verify configuration
 	errs := verifyConfig(config)
@@ -225,7 +155,10 @@ func main() {
 					proxyRequests.WithLabelValues(proxy, target.URL).Inc()
 					proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, statusCode).Inc()
 					proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
-					proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
+
+					if config.HighPrecision {
+						proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
+					}
 				}
 			}(target, proxy)
 		}
