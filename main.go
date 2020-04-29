@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -109,6 +111,22 @@ func main() {
 }
 
 func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
+	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
+
+	// first try to resolve the proxy domain to rule out DNS errors
+	proxyURL, err := url.Parse(proxy)
+	if err != nil {
+		panic(fmt.Sprintf("bad proxy url given %q: %s", proxy, err))
+	}
+
+	_, err = net.LookupHost(proxyURL.Host)
+	if err != nil {
+		proxyLookupFailures.WithLabelValues(proxy).Inc()
+		return
+	} else {
+		proxyLookupSuccesses.WithLabelValues(proxy).Inc()
+	}
+
 	requestConfig := proxyclient.RequestConfig{
 		Target:     target.URL,
 		Proxy:      proxy,
@@ -130,19 +148,11 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	if err != nil {
 		if strings.Contains(err.Error(), "proxyconnect") {
 			// proxyconnect regroups errors that indicates the proxy could not be reached
-			proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 			proxyConnectionErrors.WithLabelValues(proxy).Inc()
-			if strings.Contains(err.Error(), "lookup") {
-				// catch DNS related errors
-				log.Infof("could not resolve %s: %s", proxy, err)
-				proxyLookupFailures.WithLabelValues(proxy).Inc()
-			} else {
-				log.Infof("could not connect to %s: %s", proxy, err)
-			}
+			log.Infof("could not connect to %s: %s", proxy, err)
 		} else {
 			// the proxy replied but something bad happened
 			log.Infof("an error happened trying to reach %s via %s: %s", target.URL, proxy, err)
-			proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 			proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 			proxyRequests.WithLabelValues(proxy, target.URL).Inc()
 			proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
@@ -154,8 +164,6 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	resp.Body.Close()
 	statusCode := fmt.Sprintf("%d", resp.StatusCode)
 	log.Debugf("%v: %v in %vs", target.URL, statusCode, duration)
-	proxyLookupSuccesses.WithLabelValues(proxy).Inc()
-	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 	proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
 	proxyRequests.WithLabelValues(proxy, target.URL).Inc()
 	proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, statusCode).Inc()
