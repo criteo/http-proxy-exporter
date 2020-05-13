@@ -113,18 +113,21 @@ func main() {
 func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 
-	// first try to resolve the proxy domain to rule out DNS errors
-	proxyURL, err := url.Parse(proxy)
-	if err != nil {
-		panic(fmt.Sprintf("bad proxy url given %q: %s", proxy, err))
-	}
+	if proxy != "" {
+		// first try to resolve the proxy domain to rule out DNS errors
+		proxyURL, err := url.Parse(proxy)
+		if err != nil {
+			panic(fmt.Sprintf("bad proxy url given %q: %s", proxy, err))
+		}
 
-	_, err = net.LookupHost(proxyURL.Host)
-	if err != nil {
-		proxyLookupFailures.WithLabelValues(proxy).Inc()
-		return
-	} else {
-		proxyLookupSuccesses.WithLabelValues(proxy).Inc()
+		_, err = net.LookupHost(proxyURL.Host)
+		if err != nil {
+			log.Errorf("error while resolving proxy address: %s", err)
+			proxyLookupFailures.WithLabelValues(proxy).Inc()
+			return
+		} else {
+			proxyLookupSuccesses.WithLabelValues(proxy).Inc()
+		}
 	}
 
 	requestConfig := proxyclient.RequestConfig{
