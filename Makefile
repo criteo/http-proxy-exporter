@@ -3,7 +3,6 @@ GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
 GOINSTALL=$(GOCMD) install
 
 APPNAME=$(shell basename "$(PWD)")
@@ -16,9 +15,7 @@ BINARY_NAME=$(APPNAME)-$(VERSION)
 # Use linker flags to provide version/build settings
 LDFLAGS=-ldflags '-s -w -X "main.appName=$(APPNAME)" -X "main.buildVersion=$(VERSION)" -X "main.buildNumber=$(BUILD)" -X "main.buildTime=$(TIME)"'
 
-all: deps test install
-deps:
-	$(GOGET) -t
+all: test install
 build:
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) -v
 build-travis:
