@@ -1,10 +1,11 @@
 language: go
 go:
-- 1.12.x
+  - 1.14.x
+env:
+  - GO111MODULE=on
 script:
-- make deps
-- make test
-- make build-travis
+  - make test
+  - make build-travis
 sudo: false
 deploy:
   provider: releases
@@ -12,7 +13,6 @@ deploy:
     secure: p7YezvrsAiW3yF9MC9zC0a/yL7oiJLkApHdnUCD2tQQ46OmJY01ZZnyGDI10cbbdOmhrnios9KDIzeSYgs1n47yZBiPL5iVM0hzAW909mHN7BY9qi6WWKtc9III1nPZNLi7MfDWs+AjJw10K3/bWp0Sz1eI3B7QMqBHSGkJkuiGjR3JNPnekmzSbwzQbaWDmV67RsgPDP3Wr4EQ+W4f5OPbOnfGMXdSi9MSJrWWqy6moTQry7nv42VyfGHLLUIZtU2dC8QB5elJXMqjuUOXVbalFD3muaiwMSlvDXQ3ajWQKP6tQd0r3eGjHPGXt3ZbfHyVY/D4sg0hUS84l/h/2YdIl8ebwGw18ysjs0NBuoC8cJLnqLrM+SAV1xJ1G0+7QtCO0A+CdgSEu1gKMs77J0fehVwp2Z8Q8+278l89kLzyaUdBjQUtglXgIBMod0eRA/nAyrhLKlrjfTOxNeGQH47z5yjfPctCgNFuWT8A32s8JkS1ku3s0I1Hh0ObrUT+JDnPp/+d3mUaOWtglzIU7iZZm5D1/vCEU2IW2jG2h1iFDYrYhB7paiX9BpgnP970RnnzYFlrmoOqT51GCIB3GJy7bxzYwgUl9DzF5Ya41ha0pk8WelqllZVP3gvgOh1ATSWnzqZ0mLmPACNE2V9c2YJOQDH0ADPtnIlRt1ZUrDeQ=
   file: http-proxy-exporter
   skip_cleanup: true
-  draft: true
   on:
     repo: criteo/http-proxy-exporter
     tags: true
