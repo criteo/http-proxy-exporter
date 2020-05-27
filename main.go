@@ -113,21 +113,13 @@ func main() {
 func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 
-	if proxy != "" {
-		// first try to resolve the proxy domain to rule out DNS errors
-		proxyURL, err := url.Parse(proxy)
-		if err != nil {
-			panic(fmt.Sprintf("bad proxy url given %q: %s", proxy, err))
-		}
-
-		_, err = net.LookupHost(proxyURL.Host)
-		if err != nil {
-			log.Errorf("error while resolving proxy address: %s", err)
-			proxyLookupFailures.WithLabelValues(proxy).Inc()
-			return
-		} else {
-			proxyLookupSuccesses.WithLabelValues(proxy).Inc()
-		}
+	err := checkResolution(proxy)
+	if err != nil {
+		log.Errorf("error while resolving proxy address: %s", err)
+		proxyLookupFailures.WithLabelValues(proxy).Inc()
+		return
+	} else {
+		proxyLookupSuccesses.WithLabelValues(proxy).Inc()
 	}
 
 	requestConfig := proxyclient.RequestConfig{
@@ -175,4 +167,31 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	if config.HighPrecision {
 		proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
 	}
+}
+
+func checkResolution(proxy string) error {
+	if proxy == "" {
+		return nil
+	}
+
+	// parse the url to extract host
+	proxyURL, err := url.Parse(proxy)
+	if err != nil {
+		panic(fmt.Sprintf("bad proxy url given %q: %s", proxy, err))
+	}
+	host := proxyURL.Host
+
+	// parse ip:port if there is a port
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+
+	// if the host is an IP, do not attempt to resolve
+	ip := net.ParseIP(host)
+	if ip != nil {
+		return nil
+	}
+
+	_, err = net.LookupHost(proxyURL.Host)
+	return err
 }
