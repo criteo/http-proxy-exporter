@@ -46,7 +46,7 @@ var (
 	proxyRequestsDurations = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "proxy_requests_rtt_seconds",
 		Help:    "Histogram of requests durations.",
-		Buckets: []float64{.0025, .005, .0075, .01, .0125, .015, .0175, .02, .025, .035, .05, .075, .1, .2, 1},
+		Buckets: []float64{.0025, .005, .0075, .01, .0125, .015, .0175, .02, .025, .035, .05, .075, .1, .2, .5, 1},
 	}, []string{"proxy_url", "resource_url"})
 )
 
