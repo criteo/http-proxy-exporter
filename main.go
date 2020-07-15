@@ -113,7 +113,7 @@ func main() {
 func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
 
-	err := checkResolution(proxy)
+	proxyURL, insecure, err := resolveProxy(proxy)
 	if err != nil {
 		log.Errorf("error while resolving proxy address: %s", err)
 		proxyLookupFailures.WithLabelValues(proxy).Inc()
@@ -124,10 +124,10 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 
 	requestConfig := proxyclient.RequestConfig{
 		Target:     target.URL,
-		Proxy:      proxy,
+		Proxy:      proxyURL,
 		Auth:       auth,
 		SourceAddr: config.SourceAddress,
-		Insecure:   target.Insecure,
+		Insecure:   target.Insecure || insecure,
 		Timeout:    time.Duration(config.Interval) * time.Second,
 	}
 
@@ -169,9 +169,9 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	}
 }
 
-func checkResolution(proxy string) error {
+func resolveProxy(proxy string) (string, bool, error) {
 	if proxy == "" {
-		return nil
+		return "", false, nil
 	}
 
 	// parse the url to extract host
@@ -179,19 +179,29 @@ func checkResolution(proxy string) error {
 	if err != nil {
 		panic(fmt.Sprintf("bad proxy url given %q: %s", proxy, err))
 	}
-	host := proxyURL.Host
+	hostPort := proxyURL.Host
 
 	// parse ip:port if there is a port
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
+	host, port, err := net.SplitHostPort(hostPort)
+	if err == nil {
+		hostPort = host
 	}
 
 	// if the host is an IP, do not attempt to resolve
-	ip := net.ParseIP(host)
+	ip := net.ParseIP(hostPort)
 	if ip != nil {
-		return nil
+		return proxy, false, nil
 	}
 
-	_, err = net.LookupHost(proxyURL.Host)
-	return err
+	addrs, err := net.LookupHost(proxyURL.Host)
+	if err != nil {
+		return "", false, nil
+	}
+
+	outHost := addrs[0]
+	if port != "" {
+		outHost = net.JoinHostPort(addrs[0], port)
+	}
+
+	return fmt.Sprintf("%s://%s%s", proxyURL.Scheme, outHost, proxyURL.Path), proxyURL.Scheme == "https", nil
 }
