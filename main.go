@@ -124,7 +124,7 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 
 	requestConfig := proxyclient.RequestConfig{
 		Target:     target.URL,
-		Proxy:      proxyURL,
+		Proxy:      proxyURL.String(),
 		Auth:       auth,
 		SourceAddr: config.SourceAddress,
 		Insecure:   target.Insecure || insecure,
@@ -138,40 +138,56 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 
 	startTime := time.Now()
 	resp, err := preq.Client.Do(preq.Request)
+	if err == nil {
+		defer resp.Body.Close()
+	}
 	duration := time.Now().Sub(startTime).Seconds()
 
+	connectError := false
+	requestError := false
 	if err != nil {
 		if strings.Contains(err.Error(), "proxyconnect") {
-			// proxyconnect regroups errors that indicates the proxy could not be reached
-			proxyConnectionErrors.WithLabelValues(proxy).Inc()
-			log.Infof("could not connect to %s: %s", proxy, err)
+			// general error connecting to the proxy (conn reset, timeout...)
+			connectError = true
+		} else if strings.Contains(err.Error(), "Proxy Authentication Required") {
+			// auth error in CONNECT mode
+			connectError = true
 		} else {
-			// the proxy replied but something bad happened
-			log.Infof("an error happened trying to reach %s via %s: %s", target.URL, proxy, err)
-			proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-			proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-			proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
+			// should not be related to the proxy, but to the origin
+			requestError = true
 		}
-		log.Error(err)
-		return
+	} else {
+		if resp.StatusCode == http.StatusProxyAuthRequired {
+			// auth error in GET mode
+			connectError = true
+			err = fmt.Errorf("Proxy Authentication Required")
+		}
 	}
 
-	resp.Body.Close()
-	statusCode := fmt.Sprintf("%d", resp.StatusCode)
-	log.Debugf("%v: %v in %vs", target.URL, statusCode, duration)
-	proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-	proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-	proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, statusCode).Inc()
-	proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
+	if connectError {
+		log.Errorf("req to %q via %q: connect error: %s", target.URL, proxyURL.Redacted(), err)
+		proxyConnectionErrors.WithLabelValues(proxy).Inc()
+	} else if requestError {
+		log.Warnf("req to %q via %q: request error: %s", target.URL, proxyURL.Redacted(), err)
+		proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
+		proxyRequests.WithLabelValues(proxy, target.URL).Inc()
+		proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
+	} else {
+		log.Debugf("req to %q via %q: OK (%d)", target.URL, proxyURL.Redacted(), resp.StatusCode)
+		proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
+		proxyRequests.WithLabelValues(proxy, target.URL).Inc()
+		proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, fmt.Sprint(resp.StatusCode)).Inc()
+		proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
 
-	if config.HighPrecision {
-		proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
+		if config.HighPrecision {
+			proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
+		}
 	}
 }
 
-func resolveProxy(proxy string) (string, bool, error) {
+func resolveProxy(proxy string) (*url.URL, bool, error) {
 	if proxy == "" {
-		return "", false, nil
+		return nil, false, nil
 	}
 
 	// parse the url to extract host
@@ -190,12 +206,12 @@ func resolveProxy(proxy string) (string, bool, error) {
 	// if the host is an IP, do not attempt to resolve
 	ip := net.ParseIP(hostPort)
 	if ip != nil {
-		return proxy, false, nil
+		return proxyURL, false, nil
 	}
 
 	addrs, err := net.LookupHost(proxyURL.Host)
 	if err != nil {
-		return "", false, nil
+		return nil, false, nil
 	}
 
 	outHost := addrs[0]
@@ -203,5 +219,7 @@ func resolveProxy(proxy string) (string, bool, error) {
 		outHost = net.JoinHostPort(addrs[0], port)
 	}
 
-	return fmt.Sprintf("%s://%s%s", proxyURL.Scheme, outHost, proxyURL.Path), proxyURL.Scheme == "https", nil
+	proxyURL.Host = outHost
+
+	return proxyURL, proxyURL.Scheme == "https", nil
 }
