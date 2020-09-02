@@ -188,7 +188,7 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 
 func resolveProxy(proxy string) (*url.URL, bool, error) {
 	if proxy == "" {
-		return nil, false, nil
+		return &url.URL{}, false, nil
 	}
 
 	// parse the url to extract host
