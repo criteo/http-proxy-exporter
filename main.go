@@ -78,16 +78,18 @@ func main() {
 
 	// initialize proxy-related counters
 	for _, proxy := range config.Proxies {
-		proxyLookupSuccesses.WithLabelValues(proxy).Add(0)
-		proxyLookupFailures.WithLabelValues(proxy).Add(0)
-		proxyConnectionErrors.WithLabelValues(proxy).Add(0)
-		proxyConnectionTentatives.WithLabelValues(proxy).Add(0)
-		proxyConnectionSuccesses.WithLabelValues(proxy).Add(0)
+		proxyURL, _ := url.Parse(proxy)
+
+		proxyLookupSuccesses.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyLookupFailures.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyConnectionErrors.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyConnectionTentatives.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Add(0)
+
 		for _, target := range config.Targets {
-			proxyScheme, err := proxyclient.GetURLScheme(proxy)
-			targetScheme, err := proxyclient.GetURLScheme(target.URL)
-			if err == nil && proxyScheme == targetScheme {
-				proxyRequests.WithLabelValues(proxy, target.URL).Add(0)
+			targetURL, _ := url.Parse(target.URL)
+			if err == nil && proxyURL.Scheme == targetURL.Scheme {
+				proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Add(0)
 			}
 		}
 	}
