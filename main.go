@@ -78,16 +78,18 @@ func main() {
 
 	// initialize proxy-related counters
 	for _, proxy := range config.Proxies {
-		proxyLookupSuccesses.WithLabelValues(proxy).Add(0)
-		proxyLookupFailures.WithLabelValues(proxy).Add(0)
-		proxyConnectionErrors.WithLabelValues(proxy).Add(0)
-		proxyConnectionTentatives.WithLabelValues(proxy).Add(0)
-		proxyConnectionSuccesses.WithLabelValues(proxy).Add(0)
+		proxyURL, _ := url.Parse(proxy)
+
+		proxyLookupSuccesses.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyLookupFailures.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyConnectionErrors.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyConnectionTentatives.WithLabelValues(proxyURL.Redacted()).Add(0)
+		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Add(0)
+
 		for _, target := range config.Targets {
-			proxyScheme, err := proxyclient.GetURLScheme(proxy)
-			targetScheme, err := proxyclient.GetURLScheme(target.URL)
-			if err == nil && proxyScheme == targetScheme {
-				proxyRequests.WithLabelValues(proxy, target.URL).Add(0)
+			targetURL, _ := url.Parse(target.URL)
+			if err == nil && proxyURL.Scheme == targetURL.Scheme {
+				proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Add(0)
 			}
 		}
 	}
@@ -111,15 +113,16 @@ func main() {
 }
 
 func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
-	proxyConnectionTentatives.WithLabelValues(proxy).Inc()
-
 	proxyURL, insecure, err := resolveProxy(proxy)
+
+	proxyConnectionTentatives.WithLabelValues(proxyURL.Redacted()).Inc()
+
 	if err != nil {
 		log.Errorf("error while resolving proxy address: %s", err)
-		proxyLookupFailures.WithLabelValues(proxy).Inc()
+		proxyLookupFailures.WithLabelValues(proxyURL.Redacted()).Inc()
 		return
 	} else {
-		proxyLookupSuccesses.WithLabelValues(proxy).Inc()
+		proxyLookupSuccesses.WithLabelValues(proxyURL.Redacted()).Inc()
 	}
 
 	requestConfig := proxyclient.RequestConfig{
@@ -166,28 +169,28 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 
 	if connectError {
 		log.Errorf("req to %q via %q: connect error: %s", target.URL, proxyURL.Redacted(), err)
-		proxyConnectionErrors.WithLabelValues(proxy).Inc()
+		proxyConnectionErrors.WithLabelValues(proxyURL.Redacted()).Inc()
 	} else if requestError {
 		log.Warnf("req to %q via %q: request error: %s", target.URL, proxyURL.Redacted(), err)
-		proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-		proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-		proxyRequestsFailures.WithLabelValues(proxy, target.URL).Inc()
+		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Inc()
+		proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Inc()
+		proxyRequestsFailures.WithLabelValues(proxyURL.Redacted(), target.URL).Inc()
 	} else {
 		log.Debugf("req to %q via %q: OK (%d)", target.URL, proxyURL.Redacted(), resp.StatusCode)
-		proxyConnectionSuccesses.WithLabelValues(proxy).Inc()
-		proxyRequests.WithLabelValues(proxy, target.URL).Inc()
-		proxyRequestsSuccesses.WithLabelValues(proxy, target.URL, fmt.Sprint(resp.StatusCode)).Inc()
-		proxyRequestDurations.WithLabelValues(proxy, target.URL).Set(duration)
+		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Inc()
+		proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Inc()
+		proxyRequestsSuccesses.WithLabelValues(proxyURL.Redacted(), target.URL, fmt.Sprint(resp.StatusCode)).Inc()
+		proxyRequestDurations.WithLabelValues(proxyURL.Redacted(), target.URL).Set(duration)
 
 		if config.HighPrecision {
-			proxyRequestsDurations.WithLabelValues(proxy, target.URL).Observe(duration)
+			proxyRequestsDurations.WithLabelValues(proxyURL.Redacted(), target.URL).Observe(duration)
 		}
 	}
 }
 
 func resolveProxy(proxy string) (*url.URL, bool, error) {
 	if proxy == "" {
-		return nil, false, nil
+		return &url.URL{}, false, nil
 	}
 
 	// parse the url to extract host
@@ -211,7 +214,7 @@ func resolveProxy(proxy string) (*url.URL, bool, error) {
 
 	addrs, err := net.LookupHost(proxyURL.Host)
 	if err != nil {
-		return nil, false, nil
+		return proxyURL, false, err
 	}
 
 	outHost := addrs[0]
