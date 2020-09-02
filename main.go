@@ -212,7 +212,7 @@ func resolveProxy(proxy string) (*url.URL, bool, error) {
 
 	addrs, err := net.LookupHost(proxyURL.Host)
 	if err != nil {
-		return proxyURL, false, nil
+		return proxyURL, false, err
 	}
 
 	outHost := addrs[0]
