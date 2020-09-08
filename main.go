@@ -76,24 +76,6 @@ func main() {
 		auth = config.AuthMethods["basic"]
 	}
 
-	// initialize proxy-related counters
-	for _, proxy := range config.Proxies {
-		proxyURL, _ := url.Parse(proxy)
-
-		proxyLookupSuccesses.WithLabelValues(proxyURL.Redacted()).Add(0)
-		proxyLookupFailures.WithLabelValues(proxyURL.Redacted()).Add(0)
-		proxyConnectionErrors.WithLabelValues(proxyURL.Redacted()).Add(0)
-		proxyConnectionTentatives.WithLabelValues(proxyURL.Redacted()).Add(0)
-		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Add(0)
-
-		for _, target := range config.Targets {
-			targetURL, _ := url.Parse(target.URL)
-			if err == nil && proxyURL.Scheme == targetURL.Scheme {
-				proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Add(0)
-			}
-		}
-	}
-
 	for _, target := range config.Targets {
 		for _, proxy := range config.Proxies {
 			// create 1 measurement goroutine by (target, proxy) tuple
@@ -113,16 +95,27 @@ func main() {
 }
 
 func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
+	proxyURLForMetrics := ""
+	if proxy != "" {
+		url, err := url.Parse(proxy)
+		if err != nil {
+			// do not log the faulty url here in case it contains a password
+			log.Fatal("could not parse proxy url")
+		}
+		url.User = nil
+		proxyURLForMetrics = url.String()
+	}
+
 	proxyURL, insecure, err := resolveProxy(proxy)
 
-	proxyConnectionTentatives.WithLabelValues(proxyURL.Redacted()).Inc()
+	proxyConnectionTentatives.WithLabelValues(proxyURLForMetrics).Inc()
 
 	if err != nil {
 		log.Errorf("error while resolving proxy address: %s", err)
-		proxyLookupFailures.WithLabelValues(proxyURL.Redacted()).Inc()
+		proxyLookupFailures.WithLabelValues(proxyURLForMetrics).Inc()
 		return
 	} else {
-		proxyLookupSuccesses.WithLabelValues(proxyURL.Redacted()).Inc()
+		proxyLookupSuccesses.WithLabelValues(proxyURLForMetrics).Inc()
 	}
 
 	requestConfig := proxyclient.RequestConfig{
@@ -168,22 +161,22 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	}
 
 	if connectError {
-		log.Errorf("req to %q via %q: connect error: %s", target.URL, proxyURL.Redacted(), err)
-		proxyConnectionErrors.WithLabelValues(proxyURL.Redacted()).Inc()
+		log.Errorf("req to %q via %q: connect error: %s", target.URL, proxyURLForMetrics, err)
+		proxyConnectionErrors.WithLabelValues(proxyURLForMetrics).Inc()
 	} else if requestError {
-		log.Warnf("req to %q via %q: request error: %s", target.URL, proxyURL.Redacted(), err)
-		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Inc()
-		proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Inc()
-		proxyRequestsFailures.WithLabelValues(proxyURL.Redacted(), target.URL).Inc()
+		log.Warnf("req to %q via %q: request error: %s", target.URL, proxyURLForMetrics, err)
+		proxyConnectionSuccesses.WithLabelValues(proxyURLForMetrics).Inc()
+		proxyRequests.WithLabelValues(proxyURLForMetrics, target.URL).Inc()
+		proxyRequestsFailures.WithLabelValues(proxyURLForMetrics, target.URL).Inc()
 	} else {
-		log.Debugf("req to %q via %q: OK (%d)", target.URL, proxyURL.Redacted(), resp.StatusCode)
-		proxyConnectionSuccesses.WithLabelValues(proxyURL.Redacted()).Inc()
-		proxyRequests.WithLabelValues(proxyURL.Redacted(), target.URL).Inc()
-		proxyRequestsSuccesses.WithLabelValues(proxyURL.Redacted(), target.URL, fmt.Sprint(resp.StatusCode)).Inc()
-		proxyRequestDurations.WithLabelValues(proxyURL.Redacted(), target.URL).Set(duration)
+		log.Debugf("req to %q via %q: OK (%d)", target.URL, proxyURLForMetrics, resp.StatusCode)
+		proxyConnectionSuccesses.WithLabelValues(proxyURLForMetrics).Inc()
+		proxyRequests.WithLabelValues(proxyURLForMetrics, target.URL).Inc()
+		proxyRequestsSuccesses.WithLabelValues(proxyURLForMetrics, target.URL, fmt.Sprint(resp.StatusCode)).Inc()
+		proxyRequestDurations.WithLabelValues(proxyURLForMetrics, target.URL).Set(duration)
 
 		if config.HighPrecision {
-			proxyRequestsDurations.WithLabelValues(proxyURL.Redacted(), target.URL).Observe(duration)
+			proxyRequestsDurations.WithLabelValues(proxyURLForMetrics, target.URL).Observe(duration)
 		}
 	}
 }
