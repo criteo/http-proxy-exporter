@@ -182,8 +182,9 @@ func TestProxyOKAuth(t *testing.T) {
 
 	u, _ := url.Parse(proxyURL)
 	u.User = url.UserPassword("user", "secret_pass")
-	proxyURLMetrics := u.Redacted()
 	proxyURL = u.String()
+	u.User = nil
+	proxyURLMetrics := u.String()
 
 	measureOne(proxyURL, Target{URL: originURL, Insecure: true}, &proxyclient.AuthMethod{})
 
