@@ -70,6 +70,11 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
+	err = initMetrics(config.Proxies)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// FIXME: find a better way to handle multiple auth methods (once they exist)
 	auth := &proxyclient.AuthMethod{}
 	if len(config.AuthMethods) > 0 {
