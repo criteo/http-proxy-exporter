@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/url"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -61,4 +63,24 @@ func init() {
 	prometheus.MustRegister(proxyRequestsFailures)
 	prometheus.MustRegister(proxyRequestDurations)
 	prometheus.MustRegister(proxyRequestsDurations)
+}
+
+func initMetrics(proxyURLs []string) error {
+	for _, p := range proxyURLs {
+		url, err := url.Parse(p)
+		if err != nil {
+			return err
+		}
+
+		url.User = nil
+		proxyURL := url.String()
+
+		proxyLookupSuccesses.WithLabelValues(proxyURL).Add(0)
+		proxyLookupFailures.WithLabelValues(proxyURL).Add(0)
+		proxyConnectionTentatives.WithLabelValues(proxyURL).Add(0)
+		proxyConnectionSuccesses.WithLabelValues(proxyURL).Add(0)
+		proxyConnectionErrors.WithLabelValues(proxyURL).Add(0)
+	}
+
+	return nil
 }
