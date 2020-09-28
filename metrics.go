@@ -6,15 +6,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const (
+	proxyConnectionErrorCauseLookup = "lookup"
+	proxyConnectionErrorCauseProxy  = "proxy"
+)
+
 var (
-	proxyLookupSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_lookup_successes_total",
-		Help: "Number of successful DNS lookup.",
-	}, []string{"proxy_url"})
-	proxyLookupFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "proxy_lookup_failure_total",
-		Help: "Number of failed DNS lookup.",
-	}, []string{"proxy_url"})
 	proxyConnectionTentatives = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_connection_tentatives_total",
 		Help: "Total number of tentatives (including proxy connection errors).",
@@ -26,8 +23,8 @@ var (
 	proxyConnectionErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_connection_errors_total",
 		Help: "Number of connection errors towards proxy.",
-	}, []string{"proxy_url"})
-	proxyRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+	}, []string{"proxy_url", "cause"})
+	proxyRequestTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_requests_total",
 		Help: "Total number of requests sent to proxy",
 	}, []string{"proxy_url", "resource_url"})
@@ -40,11 +37,6 @@ var (
 		Help: "Number of failed requests.",
 	}, []string{"proxy_url", "resource_url"})
 
-	proxyRequestDurations = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "proxy_request_rtt_seconds",
-		Help: "Gauge of round trip time for each request",
-	}, []string{"proxy_url", "resource_url"})
-
 	proxyRequestsDurations = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "proxy_requests_rtt_seconds",
 		Help:    "Histogram of requests durations.",
@@ -53,15 +45,12 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(proxyLookupSuccesses)
-	prometheus.MustRegister(proxyLookupFailures)
 	prometheus.MustRegister(proxyConnectionTentatives)
 	prometheus.MustRegister(proxyConnectionSuccesses)
 	prometheus.MustRegister(proxyConnectionErrors)
-	prometheus.MustRegister(proxyRequests)
+	prometheus.MustRegister(proxyRequestTotal)
 	prometheus.MustRegister(proxyRequestsSuccesses)
 	prometheus.MustRegister(proxyRequestsFailures)
-	prometheus.MustRegister(proxyRequestDurations)
 	prometheus.MustRegister(proxyRequestsDurations)
 }
 
@@ -75,11 +64,11 @@ func initMetrics(proxyURLs []string) error {
 		url.User = nil
 		proxyURL := url.String()
 
-		proxyLookupSuccesses.WithLabelValues(proxyURL).Add(0)
-		proxyLookupFailures.WithLabelValues(proxyURL).Add(0)
 		proxyConnectionTentatives.WithLabelValues(proxyURL).Add(0)
 		proxyConnectionSuccesses.WithLabelValues(proxyURL).Add(0)
-		proxyConnectionErrors.WithLabelValues(proxyURL).Add(0)
+
+		proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseLookup).Add(0)
+		proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseProxy).Add(0)
 	}
 
 	return nil

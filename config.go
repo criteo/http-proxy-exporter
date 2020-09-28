@@ -17,7 +17,6 @@ type Config struct {
 	SourceAddress string                             `yaml:"source_address,omitempty"`
 	ListenPort    int                                `yaml:"listen_port,omitempty"`
 	Interval      int                                `yaml:"interval,omitempty"`
-	HighPrecision bool                               `yaml:"high_precision,omitempty"`
 	Debug         bool                               `yaml:"debug,omitempty"`
 }
 
