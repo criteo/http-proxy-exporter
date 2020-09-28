@@ -32,7 +32,6 @@ var (
 func init() {
 	flag.BoolVar(&printVersion, "version", false, "Print version and exit.")
 	flag.BoolVar(&config.Debug, "debug", false, "Enable debug logs.")
-	flag.BoolVar(&config.HighPrecision, "high_precision", false, "Enable low latency precision mode.")
 	flag.StringVar(&configFile, "config_file", "config.yml", "Path to configuration file.")
 	flag.IntVar(&config.Interval, "interval", 10, "Delay between each request.")
 	flag.IntVar(&config.ListenPort, "listen_port", 8000, "Prometheus HTTP server port.")
@@ -116,11 +115,8 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	proxyConnectionTentatives.WithLabelValues(proxyURLForMetrics).Inc()
 
 	if err != nil {
-		log.Errorf("error while resolving proxy address: %s", err)
-		proxyLookupFailures.WithLabelValues(proxyURLForMetrics).Inc()
+		onLookupFailure(proxyURLForMetrics, err)
 		return
-	} else {
-		proxyLookupSuccesses.WithLabelValues(proxyURLForMetrics).Inc()
 	}
 
 	requestConfig := proxyclient.RequestConfig{
@@ -142,48 +138,77 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	if err == nil {
 		defer resp.Body.Close()
 	}
-	duration := time.Now().Sub(startTime).Seconds()
 
-	connectError := false
-	requestError := false
+	connectionFailure := false
+	originFailure := false
 	if err != nil {
 		if strings.Contains(err.Error(), "proxyconnect") {
 			// general error connecting to the proxy (conn reset, timeout...)
-			connectError = true
+			connectionFailure = true
 		} else if strings.Contains(err.Error(), "Proxy Authentication Required") {
 			// auth error in CONNECT mode
-			connectError = true
+			connectionFailure = true
 		} else {
 			// should not be related to the proxy, but to the origin
-			requestError = true
+			originFailure = true
 		}
 	} else {
 		if resp.StatusCode == http.StatusProxyAuthRequired {
 			// auth error in GET mode
-			connectError = true
+			connectionFailure = true
 			err = fmt.Errorf("Proxy Authentication Required")
 		}
 	}
 
-	if connectError {
-		log.Errorf("req to %q via %q: connect error: %s", target.URL, proxyURLForMetrics, err)
-		proxyConnectionErrors.WithLabelValues(proxyURLForMetrics).Inc()
-	} else if requestError {
-		log.Warnf("req to %q via %q: request error: %s", target.URL, proxyURLForMetrics, err)
-		proxyConnectionSuccesses.WithLabelValues(proxyURLForMetrics).Inc()
-		proxyRequests.WithLabelValues(proxyURLForMetrics, target.URL).Inc()
-		proxyRequestsFailures.WithLabelValues(proxyURLForMetrics, target.URL).Inc()
+	if connectionFailure {
+		onConnectionFailure(proxyURLForMetrics, target.URL, err)
+	} else if originFailure {
+		onConnectionSuccessWithOriginFailure(proxyURLForMetrics, target.URL, err)
 	} else {
-		log.Debugf("req to %q via %q: OK (%d)", target.URL, proxyURLForMetrics, resp.StatusCode)
-		proxyConnectionSuccesses.WithLabelValues(proxyURLForMetrics).Inc()
-		proxyRequests.WithLabelValues(proxyURLForMetrics, target.URL).Inc()
-		proxyRequestsSuccesses.WithLabelValues(proxyURLForMetrics, target.URL, fmt.Sprint(resp.StatusCode)).Inc()
-		proxyRequestDurations.WithLabelValues(proxyURLForMetrics, target.URL).Set(duration)
-
-		if config.HighPrecision {
-			proxyRequestsDurations.WithLabelValues(proxyURLForMetrics, target.URL).Observe(duration)
-		}
+		onConnectionSuccessWithOriginSuccess(
+			proxyURLForMetrics,
+			target.URL,
+			resp.StatusCode,
+			time.Since(startTime),
+		)
 	}
+}
+
+func onLookupFailure(proxyURL string, err error) {
+	log.Errorf("error while resolving proxy address: %s", err)
+
+	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+	proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseLookup).Inc()
+}
+
+func onConnectionFailure(proxyURL, targetURL string, err error) {
+	log.Errorf("req to %q via %q: connect error: %s", targetURL, proxyURL, err)
+
+	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+	proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseProxy).Inc()
+}
+
+func onConnectionSuccessWithOriginFailure(proxyURL, targetURL string, err error) {
+	log.Warnf("req to %q via %q: request error: %s", targetURL, proxyURL, err)
+
+	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+
+	proxyConnectionSuccesses.WithLabelValues(proxyURL).Inc()
+
+	proxyRequestTotal.WithLabelValues(proxyURL, targetURL).Inc()
+	proxyRequestsFailures.WithLabelValues(proxyURL, targetURL).Inc()
+}
+
+func onConnectionSuccessWithOriginSuccess(proxyURL, targetURL string, statusCode int, duration time.Duration) {
+	log.Debugf("req to %q via %q: OK (%d)", targetURL, proxyURL, statusCode)
+
+	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+	proxyConnectionSuccesses.WithLabelValues(proxyURL).Inc()
+
+	proxyRequestTotal.WithLabelValues(proxyURL, targetURL).Inc()
+	proxyRequestsSuccesses.WithLabelValues(proxyURL, targetURL, fmt.Sprint(statusCode)).Inc()
+
+	proxyRequestsDurations.WithLabelValues(proxyURL, targetURL).Observe(duration.Seconds())
 }
 
 func resolveProxy(proxy string) (*url.URL, bool, error) {

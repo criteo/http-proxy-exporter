@@ -73,15 +73,12 @@ func runOrigin(t *testing.T, resCode int) (string, func()) {
 }
 
 func resetMetrics() {
-	proxyLookupSuccesses.Reset()
-	proxyLookupFailures.Reset()
 	proxyConnectionTentatives.Reset()
 	proxyConnectionSuccesses.Reset()
 	proxyConnectionErrors.Reset()
-	proxyRequests.Reset()
+	proxyRequestTotal.Reset()
 	proxyRequestsSuccesses.Reset()
 	proxyRequestsFailures.Reset()
-	proxyRequestDurations.Reset()
 	proxyRequestsDurations.Reset()
 }
 
@@ -103,21 +100,11 @@ func TestProxyOK(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyLookupFailures,
-		prometheus.Labels{"proxy_url": proxyURL},
-		0,
-	)
-	requireCounter(t,
-		proxyLookupSuccesses,
-		prometheus.Labels{"proxy_url": proxyURL},
-		1,
-	)
-	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURL, "resource_url": originURL},
 		1,
 	)
@@ -151,11 +138,11 @@ func TestProxyOKTLS(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURL, "resource_url": originURL},
 		1,
 	)
@@ -195,11 +182,11 @@ func TestProxyOKAuth(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURLMetrics},
+		prometheus.Labels{"proxy_url": proxyURLMetrics, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURLMetrics, "resource_url": originURL},
 		1,
 	)
@@ -232,11 +219,11 @@ func TestProxyNoProxy(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURL, "resource_url": originURL},
 		1,
 	)
@@ -268,14 +255,9 @@ func TestProxyResolveFailure(t *testing.T) {
 		0,
 	)
 	requireCounter(t,
-		proxyLookupFailures,
-		prometheus.Labels{"proxy_url": proxyURL},
-		1,
-	)
-	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
-		0,
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseLookup},
+		1,
 	)
 }
 
@@ -297,11 +279,11 @@ func TestProxyBadOrigin500(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURL, "resource_url": originURL},
 		1,
 	)
@@ -337,11 +319,11 @@ func TestProxyBadOriginRST(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURL, "resource_url": originURL},
 		1,
 	)
@@ -378,11 +360,11 @@ func TestProxyBadOriginRSTTLS(t *testing.T) {
 	)
 	requireCounter(t,
 		proxyConnectionErrors,
-		prometheus.Labels{"proxy_url": proxyURL},
+		prometheus.Labels{"proxy_url": proxyURL, "cause": proxyConnectionErrorCauseProxy},
 		0,
 	)
 	requireCounter(t,
-		proxyRequests,
+		proxyRequestTotal,
 		prometheus.Labels{"proxy_url": proxyURL, "resource_url": originURL},
 		1,
 	)
