@@ -112,8 +112,6 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 
 	proxyURL, insecure, err := resolveProxy(proxy)
 
-	proxyConnectionTentatives.WithLabelValues(proxyURLForMetrics).Inc()
-
 	if err != nil {
 		onLookupFailure(proxyURLForMetrics, err)
 		return
