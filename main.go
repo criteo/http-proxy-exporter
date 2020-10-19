@@ -151,10 +151,16 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 			originFailure = true
 		}
 	} else {
-		if resp.StatusCode == http.StatusProxyAuthRequired {
-			// auth error in GET mode
+		switch resp.StatusCode {
+		// auth error in GET mode
+		case http.StatusProxyAuthRequired:
 			connectionFailure = true
 			err = fmt.Errorf("Proxy Authentication Required")
+
+		// this will also catch origin 502 but we prefer false positives to false negatives
+		case http.StatusBadGateway:
+			connectionFailure = true
+			err = fmt.Errorf("Bad gateway")
 		}
 	}
 
