@@ -15,15 +15,15 @@ var (
 	proxyConnectionTentatives = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_connection_tentatives_total",
 		Help: "Total number of tentatives (including proxy connection errors).",
-	}, []string{"proxy_url"})
+	}, []string{"proxy_url", "resource_url"})
 	proxyConnectionSuccesses = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_connection_successes_total",
 		Help: "Number of successful connections towards proxy.",
-	}, []string{"proxy_url"})
+	}, []string{"proxy_url", "resource_url"})
 	proxyConnectionErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_connection_errors_total",
 		Help: "Number of connection errors towards proxy.",
-	}, []string{"proxy_url", "cause"})
+	}, []string{"proxy_url", "cause", "resource_url"})
 	proxyRequestTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "proxy_requests_total",
 		Help: "Total number of requests sent to proxy",

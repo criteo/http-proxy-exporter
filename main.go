@@ -113,7 +113,7 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	proxyURL, insecure, err := resolveProxy(proxy)
 
 	if err != nil {
-		onLookupFailure(proxyURLForMetrics, err)
+		onLookupFailure(proxyURLForMetrics, target.URL, err)
 		return
 	}
 
@@ -155,12 +155,12 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 		// auth error in GET mode
 		case http.StatusProxyAuthRequired:
 			connectionFailure = true
-			err = fmt.Errorf("Proxy Authentication Required")
+			err = fmt.Errorf("proxy authentication required")
 
 		// this will also catch origin 502 but we prefer false positives to false negatives
 		case http.StatusBadGateway:
 			connectionFailure = true
-			err = fmt.Errorf("Bad gateway")
+			err = fmt.Errorf("bad gateway")
 		}
 	}
 
@@ -178,26 +178,26 @@ func measureOne(proxy string, target Target, auth *proxyclient.AuthMethod) {
 	}
 }
 
-func onLookupFailure(proxyURL string, err error) {
+func onLookupFailure(proxyURL string, targetURL string, err error) {
 	log.Errorf("error while resolving proxy address: %s", err)
 
-	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
-	proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseLookup).Inc()
+	proxyConnectionTentatives.WithLabelValues(proxyURL, targetURL).Inc()
+	proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseLookup, targetURL).Inc()
 }
 
 func onConnectionFailure(proxyURL, targetURL string, err error) {
 	log.Errorf("req to %q via %q: connect error: %s", targetURL, proxyURL, err)
 
-	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+	proxyConnectionTentatives.WithLabelValues(proxyURL, targetURL).Inc()
 	proxyConnectionErrors.WithLabelValues(proxyURL, proxyConnectionErrorCauseProxy).Inc()
 }
 
 func onConnectionSuccessWithOriginFailure(proxyURL, targetURL string, err error) {
 	log.Warnf("req to %q via %q: request error: %s", targetURL, proxyURL, err)
 
-	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
+	proxyConnectionTentatives.WithLabelValues(proxyURL, targetURL).Inc()
 
-	proxyConnectionSuccesses.WithLabelValues(proxyURL).Inc()
+	proxyConnectionSuccesses.WithLabelValues(proxyURL, targetURL).Inc()
 
 	proxyRequestTotal.WithLabelValues(proxyURL, targetURL).Inc()
 	proxyRequestsFailures.WithLabelValues(proxyURL, targetURL).Inc()
@@ -206,8 +206,8 @@ func onConnectionSuccessWithOriginFailure(proxyURL, targetURL string, err error)
 func onConnectionSuccessWithOriginSuccess(proxyURL, targetURL string, statusCode int, duration time.Duration) {
 	log.Debugf("req to %q via %q: OK (%d)", targetURL, proxyURL, statusCode)
 
-	proxyConnectionTentatives.WithLabelValues(proxyURL).Inc()
-	proxyConnectionSuccesses.WithLabelValues(proxyURL).Inc()
+	proxyConnectionTentatives.WithLabelValues(proxyURL, targetURL).Inc()
+	proxyConnectionSuccesses.WithLabelValues(proxyURL, targetURL).Inc()
 
 	proxyRequestTotal.WithLabelValues(proxyURL, targetURL).Inc()
 	proxyRequestsSuccesses.WithLabelValues(proxyURL, targetURL, fmt.Sprint(statusCode)).Inc()
