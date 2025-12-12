@@ -7,7 +7,7 @@ require (
 	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/prometheus/client_golang v1.11.1
 	github.com/prometheus/client_model v0.2.0
-	github.com/sirupsen/logrus v1.6.0
-	github.com/stretchr/testify v1.5.1
+	github.com/sirupsen/logrus v1.8.3
+	github.com/stretchr/testify v1.7.0
 	gopkg.in/yaml.v2 v2.3.0
 )
